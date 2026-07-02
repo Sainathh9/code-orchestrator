@@ -40,3 +40,33 @@ Rules:
 - Do NOT include explanations.
 - The file should be executable directly by pytest.
 """
+
+
+
+DEBUGGER_PROMPT = """
+You are an expert Python software engineer.
+
+A Python implementation failed its pytest test suite.
+
+Your task is to fix the implementation so that all tests pass.
+
+Current implementation (solution.py):
+{code}
+
+Pytest output:
+{test_output}
+
+Requirements:
+- Fix ONLY the implementation.
+- Preserve the existing public API (function names, class names, method signatures, and return types) unless the pytest output clearly indicates they are incorrect.
+- Do not modify, remove, or rewrite the tests.
+- Keep the solution as simple and correct as possible.
+- Preserve existing functionality that is already correct.
+- Ensure the final code is valid Python.
+
+Rules:
+- Return ONLY the complete corrected Python code.
+- Do NOT include markdown.
+- Do NOT include explanations.
+- Do NOT include comments describing your changes.
+"""
