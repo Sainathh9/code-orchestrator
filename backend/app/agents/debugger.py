@@ -1,20 +1,57 @@
-from app.agents.base import BaseAgent
 from app.services.llm.factory import LLMFactory
 from app.services.llm.prompts import DEBUGGER_PROMPT
-from app.sandbox.workspace_mgr import WorkspaceManager
-from pathlib import Path
 
-class DebuggerAgent(BaseAgent):
-     def __init__(self):
-           self.llm = LLMFactory.create()
 
-     def run(self,workspace : WorkspaceManager, workspace_path: Path, test_output: str) -> None :
-         generated_code = workspace.read_file(workspace_path, "solution.py")
-         prompt = DEBUGGER_PROMPT.format(
-              code = generated_code,
-              test_output = test_output
-          )
-         new_code = self.llm.generate(prompt)
-         workspace.write_file(workspace_path, "solution.py", new_code)
-         
-          
+class DebuggerAgent:
+
+    def __init__(self):
+        self.llm = LLMFactory.create()
+
+    def run(self, context, test_output: str) -> None:
+
+        # 1. Read current code
+        old_code = context.workspace.read_file(
+            context.workspace_path,
+            "solution.py"
+        )
+
+        # 2. Generate fix
+        prompt = DEBUGGER_PROMPT.format(
+            code=old_code,
+            test_output=test_output
+        )
+
+        new_code = self.llm.generate(prompt)
+
+        # 3. SAFETY CHECKS (BEFORE ANY WRITE)
+        if not new_code:
+            return
+
+        new_code = new_code.strip()
+        old_code = old_code.strip()
+
+        if len(new_code) < 10:
+            return
+
+        # 4. If no improvement → skip
+        if new_code == old_code:
+            return
+
+        # 5. Update version ONLY when valid change exists
+        context.version += 1
+
+        # 6. Write updated solution
+        context.workspace.write_file(
+            context.workspace_path,
+            "solution.py",
+            new_code
+        )
+
+        # 7. Save version snapshot
+        context.workspace.save_version(
+            context.workspace_path,
+            context.version,
+            new_code
+        )
+
+       

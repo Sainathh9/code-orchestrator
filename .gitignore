@@ -218,3 +218,13 @@ __marimo__/
 .streamlit/secrets.toml
 # Generated workspaces
 workspace/
+
+# Node
+node_modules/
+
+# SQLite (no longer used)
+*.db
+
+# Docker volumes
+postgres_data/
+redis_data/
