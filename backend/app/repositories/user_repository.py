@@ -75,6 +75,53 @@ class UserRepository:
         self.db.refresh(user)
         return user
 
+    def register_by_email(
+        self,
+        email: str,
+        password: str,
+    ) -> User | None:
+        """
+        Register a new user by email and password.
+        Returns None if the email is already taken.
+        """
+        user = self.get_by_email(email)
+        if user is not None:
+            return None  # email already exists
+
+        name = email.split('@')[0].capitalize()
+        salt = bcrypt.gensalt()
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+        user = User(
+            email=email,
+            name=name,
+            password_hash=password_hash,
+        )
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def login_by_email(
+        self,
+        email: str,
+        password: str,
+    ) -> User | None:
+        """
+        Authenticate an existing user by email and password.
+        Returns None if the user doesn't exist or password is wrong.
+        """
+        user = self.get_by_email(email)
+        if user is None:
+            return None
+
+        if not user.password_hash:
+            # User registered via Google OAuth — no password set
+            return None
+
+        if bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+            return user
+        return None
+
     def get_or_create_by_email_and_password(
         self,
         email: str,
@@ -105,3 +152,4 @@ class UserRepository:
             if bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
                 return user
         return None
+

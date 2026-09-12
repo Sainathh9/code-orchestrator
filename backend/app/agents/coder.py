@@ -6,8 +6,8 @@ from app.schemas.execution_context import ExecutionContext
 
 class CodeAgent(BaseAgent):
 
-    def __init__(self):
-        self.llm = LLMFactory.create()
+    def __init__(self, model: str | None = None):
+        self.llm = LLMFactory.create(model=model)
 
     def run(
         self,

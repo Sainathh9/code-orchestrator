@@ -1,72 +1,72 @@
 CODE_GENERATION_PROMPT = """
-You are an expert Python software engineer.
+You are an expert software engineer.
 
-Generate clean, production-quality Python code.
+Generate clean, production-quality code for the following requirement.
 
 Requirements:
 {requirement}
 
 Rules:
-- Return ONLY Python code.
-- Do NOT use markdown.
+- If the requirement asks for a full application, project, or multi-file system:
+  - Output ALL files needed to run the app, using this exact format per file:
+    === FILE: path/to/filename.ext ===
+    (file content here)
+  - Include a minimal but complete and working file structure (e.g. main entry point, config, key modules).
+  - Keep it basic and functional to save tokens — no boilerplate comments, no placeholder TODOs.
+  - Include a short README.md with instructions to run the app.
+- If the requirement is a single function, algorithm, or script:
+  - Return ONLY the Python code for solution.py.
+- Do NOT use markdown fencing (no ```).
 - Do NOT explain your solution.
 """
 
 
+CODE_AND_TESTS_PROMPT = """
+You are an expert Python engineer. Generate BOTH the implementation AND its pytest tests in a single response.
+
+Requirement:
+{requirement}
+
+Return your answer in exactly this format — no markdown, no explanations:
+
+=== SOLUTION ===
+(your Python implementation here)
+
+=== TESTS ===
+(your pytest tests here — import from solution)
+
+Rules:
+- Tests must use pytest and import from solution.
+- Cover normal cases and edge cases.
+- Keep tests concise but thorough.
+- Do NOT use markdown fencing.
+"""
+
 
 TEST_GENERATION_PROMPT = """
-You are an expert Python QA engineer specializing in writing high-quality pytest test suites.
-
-Your task is to generate comprehensive unit tests for the following Python code.
+You are an expert Python QA engineer. Generate pytest tests for this code.
 
 Python Code:
 {code}
 
-Requirements:
-- Use the pytest framework.
-- Import everything required from solution.py.
-- Cover normal use cases.
-- Cover edge cases.
-- Cover invalid inputs whenever applicable.
-- Use descriptive test function names.
-- Do not modify the implementation.
-- Do not mock unless absolutely necessary.
-- Ensure the tests are deterministic and repeatable.
-- Generate only valid Python code.
-
 Rules:
-- Return ONLY Python code.
-- Do NOT wrap the code in markdown.
-- Do NOT include explanations.
-- The file should be executable directly by pytest.
+- Use pytest, import from solution.
+- Cover normal and edge cases.
+- Return ONLY Python code, no markdown, no explanations.
 """
 
 
-
 DEBUGGER_PROMPT = """
-You are an expert Python software engineer.
+You are an expert Python engineer. Fix this code so all tests pass.
 
-A Python implementation failed its pytest test suite.
-
-Your task is to fix the implementation so that all tests pass.
-
-Current implementation (solution.py):
+Code:
 {code}
 
-Pytest output:
+Test output:
 {test_output}
 
-Requirements:
-- Fix ONLY the implementation.
-- Preserve the existing public API (function names, class names, method signatures, and return types) unless the pytest output clearly indicates they are incorrect.
-- Do not modify, remove, or rewrite the tests.
-- Keep the solution as simple and correct as possible.
-- Preserve existing functionality that is already correct.
-- Ensure the final code is valid Python.
-
 Rules:
-- Return ONLY the complete corrected Python code.
-- Do NOT include markdown.
-- Do NOT include explanations.
-- Do NOT include comments describing your changes.
+- Return ONLY the corrected Python code.
+- Preserve function/class names and signatures.
+- No markdown, no explanations.
 """

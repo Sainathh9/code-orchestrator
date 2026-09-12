@@ -30,13 +30,14 @@ class Orchestrator:
         # concurrent invocations (each call to .invoke() gets its own state dict).
         self.graph = compile_graph()
 
-    def run(self, requirement: str, user_id: str = None) -> ExecutionResult:
+    def run(self, requirement: str, user_id: str = None, model: str = None) -> ExecutionResult:
         """
         Execute the full code-generation → test → debug pipeline.
 
         Args:
             requirement: Natural-language description of the code to generate.
             user_id: The ID of the authenticated user who requested this execution.
+            model: Optional LLM model name selected by the user.
 
         Returns:
             ExecutionResult with the final test outcome and workspace path.
@@ -48,6 +49,7 @@ class Orchestrator:
         initial_state: dict = {
             "requirement": requirement,
             "user_id": user_id,
+            "model": model,
         }
 
         # graph.invoke() runs the full graph synchronously and returns the
@@ -61,4 +63,5 @@ class Orchestrator:
             stdout=final_state.get("stdout", ""),
             stderr=final_state.get("stderr", ""),
             exit_code=final_state.get("exit_code", -1),
+            execution_id=final_state.get("execution_id"),
         )

@@ -48,13 +48,63 @@ class EmailLoginRequest(BaseModel):
     email: str
     password: str
 
+@router.post("/register")
+def register(
+    payload: EmailLoginRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Register a new user with email and password.
+    Returns a signed JWT on success.
+    """
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email address format.",
+        )
+
+    if not payload.password or len(payload.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters.",
+        )
+
+    repo = UserRepository(db)
+    user = repo.register_by_email(email, payload.password)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists. Try signing in instead.",
+        )
+
+    logger.info(f"New user registered via email: {user.email} (id={user.id})")
+
+    access_token = create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "profile_picture": user.profile_picture,
+        },
+    }
+
+
 @router.post("/email-login")
 def email_login(
     payload: EmailLoginRequest,
     db: Session = Depends(get_db),
 ):
     """
-    Authenticate/register a user directly using their email address and password.
+    Authenticate an existing user using email and password.
     Generates and returns a signed JWT.
     """
     email = payload.email.strip().lower()
@@ -71,12 +121,12 @@ def email_login(
         )
 
     repo = UserRepository(db)
-    user = repo.get_or_create_by_email_and_password(email, payload.password)
+    user = repo.login_by_email(email, payload.password)
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect email or password.",
         )
 
     logger.info(f"User authenticated via email: {user.email} (id={user.id})")

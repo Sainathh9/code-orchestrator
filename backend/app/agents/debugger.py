@@ -4,8 +4,8 @@ from app.services.llm.prompts import DEBUGGER_PROMPT
 
 class DebuggerAgent:
 
-    def __init__(self):
-        self.llm = LLMFactory.create()
+    def __init__(self, model: str | None = None):
+        self.llm = LLMFactory.create(model=model)
 
     def run(self, context, test_output: str) -> None:
 

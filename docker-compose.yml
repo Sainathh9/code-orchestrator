@@ -11,7 +11,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-orchestrator_db}"]
       interval: 5s
@@ -38,7 +38,7 @@ services:
   # spawned on demand by the worker via the Docker SDK (DinD via socket mount).
   sandbox-builder:
     build:
-      context: ./sandbox
+      context: ./backend/sandbox
       dockerfile: Dockerfile
     image: code-orchestrator-sandbox:latest   # tags the built image with this name
     restart: "no"                             # build-once, never restart

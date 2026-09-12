@@ -39,13 +39,7 @@ from app.repositories.iteration_repository import ExecutionIterationRepository
 from app.orchestrator.graph.state import GraphState
 from app.orchestrator.graph.edges import analyze_failure, MAX_TRIES
 
-# ── Module-level agent singletons ─────────────────────────────────────────────
-# Agents hold no mutable per-execution state (they only hold the LLM client),
-# so sharing them across node calls is safe and avoids re-initialising the
-# LLM client on every graph invocation.
-_code_agent = CodeAgent()
-_test_agent = TestAgent()
-_debugger_agent = DebuggerAgent()
+# Runner is stateless and model-independent — safe as a module singleton.
 _runner = Runner()
 
 def _update_job_meta(step_text: str):
@@ -143,88 +137,143 @@ def node_initialize(state: GraphState) -> dict:
 
 # ── Node 2: generate_code ─────────────────────────────────────────────────────
 
+# Keywords that indicate a coding/programming request (fast local heuristic
+# instead of burning an LLM roundtrip for classification).
+_CODE_KEYWORDS = {
+    "function", "class", "implement", "code", "program", "script", "algorithm",
+    "api", "app", "application", "build", "create", "write", "develop", "fix",
+    "debug", "refactor", "test", "solve", "parse", "sort", "search", "crud",
+    "database", "server", "endpoint", "frontend", "backend", "cli", "bot",
+    "scraper", "crawler", "library", "module", "package", "deploy", "docker",
+    "python", "javascript", "typescript", "java", "html", "css", "react",
+    "flask", "django", "fastapi", "node", "express", "sql", "rest", "graphql",
+    "def ", "import ", "pip", "npm", "fibonacci", "linked list", "binary tree",
+    "stack", "queue", "hash", "regex", "calculator", "game", "todo",
+}
+
+
+def _is_code_request(requirement: str) -> bool:
+    """Fast keyword-based classification — no LLM call needed."""
+    text = requirement.lower()
+    return any(kw in text for kw in _CODE_KEYWORDS)
+
+
 def node_generate_code(state: GraphState) -> dict:
     """
-    Invoke CodeAgent to generate solution.py and save version snapshot v1.
+    Generate both solution.py AND test_solution.py in a single LLM call.
 
-    CodeAgent writes to the workspace directly and calls
-    context.workspace.save_version(), so no additional file I/O is needed here.
+    Uses a fast keyword heuristic instead of an LLM classification call to
+    determine if the requirement is code-related. If it is, uses the combined
+    CODE_AND_TESTS_PROMPT so we get both files in one roundtrip.
     """
     ctx, _ = _rebuild_context(state)
     logger = get_logger("orchestrator.graph")
     logger.info(f"[generate_code] execution_id={state['execution_id']}")
     _update_job_meta("Generating code...")
 
-    # 1. Classification check
-    from app.services.llm.factory import LLMFactory
-    llm = LLMFactory.create()
-    
-    prompt = f"""You are a classifier. Determine if the user's requirement is requesting software code generation, implementation of a programming task, code debugging, translation of code, or any other software engineering task.
-Answer with exactly 'YES' if it is a coding/programming request, or 'NO' if it is anything else (such as general chat, questions about history, science, jokes, writing essays, math solver, etc.).
-Do not include any explanation, code blocks, or markdown. Only return 'YES' or 'NO'.
+    model = state.get("model")
+    requirement = state["requirement"]
 
-Requirement: {state["requirement"]}"""
-
-    try:
-        response = llm.generate(prompt)
-        logger.info(f"[generate_code] classification response: {response}")
-        is_code = "YES" in response.strip().upper()
-    except Exception as e:
-        logger.error(f"[generate_code] classification failed, defaulting to YES: {e}")
-        is_code = True
+    # 1. Fast local classification (no LLM call)
+    is_code = _is_code_request(requirement)
+    logger.info(f"[generate_code] keyword classification: is_code={is_code}")
 
     if not is_code:
         logger.info("[generate_code] requirement is not for code, returning specific text.")
         specific_text = "I can only help with writing code. Please ask a coding-related question."
-        
-        # write solution
-        ctx.workspace.write_file(
-            ctx.workspace_path,
-            "solution.py",
-            specific_text
-        )
-        # save version (IMPORTANT: use current version)
-        ctx.workspace.save_version(
-            ctx.workspace_path,
-            ctx.version,
-            specific_text,
-        )
+
+        ctx.workspace.write_file(ctx.workspace_path, "solution.py", specific_text)
+        ctx.workspace.save_version(ctx.workspace_path, ctx.version, specific_text)
         return {
             "version": ctx.version,
             "iteration": 1,
             "is_code": False,
             "passed": True,
             "stdout": "Non-code requirement detected. Specific text returned.",
-            "exit_code": 0
+            "exit_code": 0,
         }
 
-    _code_agent.run(state["requirement"], ctx)
+    # 2. Generate code AND tests in one LLM call
+    from app.services.llm.factory import LLMFactory
+    from app.services.llm.prompts import CODE_AND_TESTS_PROMPT
 
-    # version may have been incremented by CodeAgent (it always saves v1)
+    llm = LLMFactory.create(model=model)
+    prompt = CODE_AND_TESTS_PROMPT.format(requirement=requirement)
+    _update_job_meta("Generating code & tests...")
+    response = llm.generate(prompt)
+
+    if not response or len(response.strip()) < 10:
+        raise ValueError("LLM returned invalid code")
+
+    # 3. Parse the combined response into solution + tests
+    solution_code, test_code = _parse_combined_response(response.strip())
+
+    # 4. Write solution
+    ctx.workspace.write_file(ctx.workspace_path, "solution.py", solution_code)
+    ctx.workspace.save_version(ctx.workspace_path, ctx.version, solution_code)
+
+    # 5. Write tests (if we got them)
+    if test_code:
+        ctx.workspace.write_file(ctx.workspace_path, "test_solution.py", test_code)
+
     return {
         "version": ctx.version,
-        "is_code": True
+        "is_code": True,
+        "tests_generated": bool(test_code),
     }
 
+
+def _parse_combined_response(response: str) -> tuple[str, str]:
+    """
+    Split an LLM response that contains both solution and tests separated
+    by '=== SOLUTION ===' and '=== TESTS ===' markers.
+
+    Falls back gracefully: if markers are missing, treats the entire response
+    as solution code and returns empty test code.
+    """
+    from app.services.llm.llm_service import clean_code
+
+    sol_marker = "=== SOLUTION ==="
+    test_marker = "=== TESTS ==="
+
+    if sol_marker in response and test_marker in response:
+        parts = response.split(test_marker, 1)
+        solution_part = parts[0].split(sol_marker, 1)[-1].strip()
+        test_part = parts[1].strip()
+        return clean_code(solution_part), clean_code(test_part)
+
+    # Fallback: no markers found — treat entire response as solution
+    return clean_code(response), ""
 
 
 # ── Node 3: generate_tests ────────────────────────────────────────────────────
 
 def node_generate_tests(state: GraphState) -> dict:
     """
-    Invoke TestAgent to generate test_solution.py based on solution.py.
+    Generate tests if they weren't already produced by node_generate_code.
 
-    TestAgent reads solution.py from the workspace and writes test_solution.py.
-    No state fields change as a result.
+    When CODE_AND_TESTS_PROMPT succeeds, tests are already written and this
+    node is a no-op. Only falls back to a separate LLM call if tests are
+    missing.
     """
     ctx, _ = _rebuild_context(state)
     logger = get_logger("orchestrator.graph")
-    logger.info(f"[generate_tests] execution_id={state['execution_id']}")
+
+    # Check if tests were already generated in the combined call
+    if state.get("tests_generated", False):
+        logger.info("[generate_tests] tests already generated — skipping")
+        return {}
+
+    # Fallback: generate tests separately
+    logger.info(f"[generate_tests] execution_id={state['execution_id']} — fallback")
     _update_job_meta("Generating tests...")
 
-    _test_agent.run(ctx)
+    model = state.get("model")
+    test_agent = TestAgent(model=model)
+    test_agent.run(ctx)
 
     return {}
+
 
 
 # ── Node 4: run_tests ─────────────────────────────────────────────────────────
@@ -364,7 +413,9 @@ def node_debug(state: GraphState) -> dict:
     )
     _update_job_meta("Self-healing and debugging...")
 
-    _debugger_agent.run(ctx, state.get("stdout", ""))
+    model = state.get("model")
+    debugger_agent = DebuggerAgent(model=model)
+    debugger_agent.run(ctx, state.get("stdout", ""))
 
     logger.info(f"[debug] version_after={ctx.version}")
 

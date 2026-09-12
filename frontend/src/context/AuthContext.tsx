@@ -8,6 +8,7 @@ export interface AuthContextType {
   loading: boolean;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
+  registerWithEmail: (email: string, password: string) => Promise<void>;
   handleCallback: (code: string, state: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -117,12 +118,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const registerWithEmail = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      const data = await authApi.register(email, password);
+      localStorage.setItem('access_token', data.access_token);
+      const profile = await authApi.getMe();
+      setUser(profile);
+    } catch (error) {
+      console.error('Email registration failure:', error);
+      localStorage.removeItem('access_token');
+      setUser(null);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     loading,
     login,
     loginWithEmail,
+    registerWithEmail,
     handleCallback,
     logout,
   };

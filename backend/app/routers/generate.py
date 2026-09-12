@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -11,6 +13,7 @@ router = APIRouter()
 
 class GenerateRequest(BaseModel):
     requirement: str
+    model: Optional[str] = None
 
 
 @router.post("/generate", status_code=202)
@@ -34,6 +37,7 @@ def generate(
         run_orchestration,
         request.requirement,
         str(current_user.id),
+        request.model,
         job_timeout=600,          # 10-minute ceiling per job
         result_ttl=86_400,        # keep result in Redis for 24 h
         failure_ttl=86_400,       # keep failure info for 24 h

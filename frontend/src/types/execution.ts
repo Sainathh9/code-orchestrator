@@ -29,6 +29,7 @@ export interface ExecutionResult {
   stdout: string;
   stderr: string;
   exit_code: number;
+  execution_id?: string;
 }
 
 export interface JobStatus {

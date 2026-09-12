@@ -22,11 +22,6 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const AppleIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-    <path d="M11.182 0c.087.7-.25 1.45-.697 1.97-.447.52-1.166.937-1.88.882-.1-.696.253-1.418.683-1.89C9.718.49 10.487.07 11.182 0zM13.98 11.39c-.313.91-.694 1.717-1.145 2.426-.73 1.135-1.49 2.27-2.698 2.29-1.186.02-1.565-.775-2.918-.776-1.352 0-1.77.795-2.897.795-1.186 0-2.01-1.165-2.74-2.3C.372 11.594-.43 8.82.264 6.147c.684-2.61 2.74-4.38 4.89-4.38 1.29 0 2.36.845 3.17.845.79 0 2.266-.997 3.81-.85.645.027 2.457.26 3.624 1.97-.094.06-2.158 1.26-2.135 3.753.024 2.985 2.62 3.98 2.66 3.996-.034.1-.413 1.41-.413 1.41z"/>
-  </svg>
-);
 
 const AnnouncementBanner = () => (
   <div style={{
@@ -45,13 +40,14 @@ const AnnouncementBanner = () => (
 // ── Auth Pages (Unchanged visually) ──────────────────────────────────────────
 
 const LoginPage: React.FC = () => {
-  const { login, loginWithEmail, isAuthenticated } = useAuth();
+  const { login, loginWithEmail, registerWithEmail, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const isExpired = searchParams.get('expired') === 'true';
 
@@ -66,16 +62,34 @@ const LoginPage: React.FC = () => {
       setEmailError('Please enter a valid email address.');
       return;
     }
+    if (isSignUp && password.length < 6) {
+      setEmailError('Password must be at least 6 characters.');
+      return;
+    }
     setEmailError(null);
     setSubmitting(true);
     try {
-      await loginWithEmail(trimmed, password);
+      if (isSignUp) {
+        await registerWithEmail(trimmed, password);
+      } else {
+        await loginWithEmail(trimmed, password);
+      }
       navigate('/', { replace: true });
-    } catch {
-      setEmailError('Sign-in failed. Check your connection and try again.');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      if (isSignUp) {
+        setEmailError(detail || 'Registration failed. This email may already be in use.');
+      } else {
+        setEmailError(detail || 'Incorrect email or password.');
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    setEmailError(null);
   };
 
   const inputStyle: React.CSSProperties = {
@@ -93,13 +107,11 @@ const LoginPage: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', maxWidth: '340px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '48px' }}>
-        <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-          <path d="M14 0L17.2 10.8L28 14L17.2 17.2L14 28L10.8 17.2L0 14L10.8 10.8L14 0Z" fill="#d97757"/>
-        </svg>
-        <span style={{ fontFamily: 'var(--serif)', fontSize: '18px', fontWeight: 600, color: '#f5f0e8', letterSpacing: '-0.2px' }}>Orchestrator</span>
+        <img src="/logo.png" alt="Orchestrator Logo" style={{ width: '64px', height: '64px', objectFit: 'contain', marginLeft: '-16px', marginRight: '-16px' }} />
+        <span style={{ fontFamily: 'var(--serif)', fontSize: '28px', fontWeight: 600, color: '#f5f0e8', letterSpacing: '-0.2px' }}>Orchestrator</span>
       </div>
       <h1 style={{ fontFamily: 'var(--serif)', fontSize: '44px', fontWeight: 600, lineHeight: '1.15', letterSpacing: '-0.5px', color: '#f5f0e8', marginBottom: '16px' }}>
-        Code fast,<br />heal faster.
+        Code that heals itself
       </h1>
       <p style={{ fontSize: '14px', color: '#8a8a8a', marginBottom: '28px', lineHeight: '1.6' }}>
         Build, test, and deploy production-ready code with AI-powered self-healing.
@@ -120,14 +132,27 @@ const LoginPage: React.FC = () => {
       </div>
       <form onSubmit={handleEmailSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <input type="email" placeholder="Enter your email" value={email} onChange={e => setEmail(e.target.value)} disabled={submitting} required style={inputStyle} onFocus={e => (e.target.style.borderColor = 'rgba(255,255,255,0.28)')} onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.10)')} />
-        <input type="password" placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} disabled={submitting} required style={inputStyle} onFocus={e => (e.target.style.borderColor = 'rgba(255,255,255,0.28)')} onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.10)')} />
+        <input type="password" placeholder={isSignUp ? 'Create a password (min 6 chars)' : 'Enter your password'} value={password} onChange={e => setPassword(e.target.value)} disabled={submitting} required minLength={isSignUp ? 6 : undefined} style={inputStyle} onFocus={e => (e.target.style.borderColor = 'rgba(255,255,255,0.28)')} onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.10)')} />
         <button type="submit" disabled={submitting} style={{ ...btnBase, background: '#f5f0e8', color: '#0f0f0f', opacity: submitting ? 0.75 : 1 }} onMouseOver={e => !submitting && (e.currentTarget.style.background = '#ece6dd')} onMouseOut={e => (e.currentTarget.style.background = '#f5f0e8')}>
-          {submitting ? 'Connecting...' : 'Continue with email'}
+          {submitting ? 'Connecting...' : isSignUp ? 'Create account' : 'Sign in with email'}
         </button>
       </form>
-      <button style={{ ...btnBase, background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#8a8a8a', marginTop: '14px', fontSize: '13px' }} onMouseOver={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)')} onMouseOut={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}>
-        <AppleIcon /> Download desktop app
-      </button>
+      <div style={{ width: '100%', textAlign: 'center', marginTop: '16px' }}>
+        <span style={{ fontSize: '13px', color: '#8a8a8a' }}>
+          {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+          <button
+            type="button"
+            onClick={toggleMode}
+            style={{
+              background: 'none', border: 'none', color: '#2D68FF', cursor: 'pointer',
+              fontSize: '13px', fontFamily: 'var(--sans)', textDecoration: 'underline',
+              padding: 0,
+            }}
+          >
+            {isSignUp ? 'Sign in' : 'Sign up'}
+          </button>
+        </span>
+      </div>
     </div>
   );
 };
@@ -136,11 +161,16 @@ const OAuthCallbackPage: React.FC = () => {
   const { handleCallback } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const called = React.useRef(false);
 
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
+    
     if (code && state) {
+      if (called.current) return;
+      called.current = true;
+      
       handleCallback(code, state)
         .then(() => navigate('/', { replace: true }))
         .catch(() => navigate('/login?error=callback_failed', { replace: true }));
@@ -151,7 +181,7 @@ const OAuthCallbackPage: React.FC = () => {
 
   return (
     <div style={{ textAlign: 'center' }}>
-      <div style={{ width: '32px', height: '32px', margin: '0 auto 20px', border: '2px solid rgba(255,255,255,0.08)', borderTop: '2px solid #d97757', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ width: '32px', height: '32px', margin: '0 auto 20px', border: '2px solid rgba(255,255,255,0.08)', borderTop: '2px solid #2D68FF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <p style={{ fontFamily: 'var(--serif)', fontSize: '20px', color: '#f5f0e8', marginBottom: '8px' }}>Verifying...</p>
       <p style={{ fontSize: '13px', color: '#8a8a8a' }}>Completing authentication</p>
     </div>
@@ -168,16 +198,23 @@ const DashboardPage: React.FC = () => {
   
   const { status, stepText } = useJobPoller(activeJobId);
 
-  // If a job just finished, refresh the sidebar
+  const navigate = useNavigate();
+
+  // If a job just finished, refresh the sidebar and navigate to results
   useEffect(() => {
-    if (status?.status === 'finished' || status?.status === 'failed') {
+    if (status?.status === 'finished') {
+      triggerRefreshExecutions();
+      if (status.result?.execution_id) {
+        navigate(`/executions/${status.result.execution_id}`);
+      }
+    } else if (status?.status === 'failed') {
       triggerRefreshExecutions();
     }
-  }, [status?.status, triggerRefreshExecutions]);
+  }, [status?.status, status?.result?.execution_id, triggerRefreshExecutions, navigate]);
 
-  const handleSubmit = async (prompt: string) => {
+  const handleSubmit = async (prompt: string, model?: string) => {
     try {
-      const res = await executionsApi.generate(prompt);
+      const res = await executionsApi.generate(prompt, model);
       setSearchParams({ job_id: res.job_id, q: prompt });
     } catch (err) {
       console.error('Failed to submit job', err);
@@ -235,9 +272,9 @@ const ExecutionDetailPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleSubmit = async (prompt: string) => {
+  const handleSubmit = async (prompt: string, model?: string) => {
     try {
-      const res = await executionsApi.generate(prompt);
+      const res = await executionsApi.generate(prompt, model);
       navigate(`/?job_id=${res.job_id}&q=${encodeURIComponent(prompt)}`);
     } catch (err) {
       console.error('Failed to submit job', err);

@@ -11,9 +11,10 @@ export const executionsApi = {
   /**
    * Enqueue a new code generation job.
    */
-  async generate(requirement: string): Promise<GenerateJobResponse> {
+  async generate(requirement: string, model?: string): Promise<GenerateJobResponse> {
     const response = await apiClient.post<GenerateJobResponse>('/generate', {
       requirement,
+      model: model || undefined,
     });
     return response.data;
   },

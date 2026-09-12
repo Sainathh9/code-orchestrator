@@ -30,7 +30,9 @@ class GraphState(TypedDict, total=False):
     # ── inputs ────────────────────────────────────────────────────────────────
     requirement: str                    # user-provided, set before graph.invoke()
     user_id: Optional[str]              # authenticated user ID, set before graph.invoke()
+    model: Optional[str]                # user-selected LLM model, set before graph.invoke()
     is_code: bool                       # whether the requirement asks for code
+    tests_generated: bool               # whether tests were produced in combined generation
 
 
     # ── execution identity [INIT] ─────────────────────────────────────────────

@@ -63,6 +63,17 @@ export const authApi = {
   },
 
   /**
+   * Register a new account with email and password.
+   */
+  async register(email: string, password: string): Promise<LoginCallbackResponse> {
+    const response = await apiClient.post<LoginCallbackResponse>('/auth/register', {
+      email,
+      password,
+    });
+    return response.data;
+  },
+
+  /**
    * Perform logout: revoke JWT by adding to Redis deny-list.
    */
   async logout(): Promise<void> {

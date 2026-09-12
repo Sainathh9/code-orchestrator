@@ -15,7 +15,7 @@ from app.orchestrator.orchestrator import Orchestrator
 logger = logging.getLogger(__name__)
 
 
-def run_orchestration(requirement: str, user_id: str = None) -> dict:
+def run_orchestration(requirement: str, user_id: str = None, model: str = None) -> dict:
     """
     Entry point called by the RQ worker for every code-generation job.
 
@@ -25,6 +25,7 @@ def run_orchestration(requirement: str, user_id: str = None) -> dict:
     Args:
         requirement: Natural-language description of the code to generate.
         user_id: The ID of the authenticated user who requested this execution.
+        model: Optional LLM model name selected by the user.
 
     Returns:
         A dict representation of ExecutionResult, stored by RQ in Redis so
@@ -34,10 +35,10 @@ def run_orchestration(requirement: str, user_id: str = None) -> dict:
         Any exception raised by Orchestrator.run() propagates to RQ, which
         marks the job as ``failed`` and stores the traceback.
     """
-    logger.info(f"[worker] Starting orchestration — requirement: {requirement!r}, user_id: {user_id}")
+    logger.info(f"[worker] Starting orchestration — requirement: {requirement!r}, user_id: {user_id}, model: {model}")
 
     orchestrator = Orchestrator()
-    result = orchestrator.run(requirement, user_id)
+    result = orchestrator.run(requirement, user_id, model=model)
 
     logger.info(
         f"[worker] Finished — passed={result.passed}, tries={result.tries_used}"

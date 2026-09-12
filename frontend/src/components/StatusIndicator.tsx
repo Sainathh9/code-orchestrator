@@ -31,18 +31,7 @@ export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
           justifyContent: 'center',
         }}
       >
-        <svg
-          width={size}
-          height={size}
-          viewBox="0 0 28 28"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M14 0L17.2 10.8L28 14L17.2 17.2L14 28L10.8 17.2L0 14L10.8 10.8L14 0Z"
-            fill="var(--accent)"
-          />
-        </svg>
+        <img src="/logo.png" alt="Orchestrator Logo" style={{ width: size, height: size, objectFit: 'contain', transform: 'scale(2.5)' }} />
       </div>
       {stepText && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

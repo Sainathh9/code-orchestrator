@@ -8,3 +8,4 @@ class ExecutionResult(BaseModel):
     stdout: str
     stderr: str
     exit_code: int
+    execution_id: str | None = None
